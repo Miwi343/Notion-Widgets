@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reuters Category Headlines with Detailed Summaries</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #fafafa;
+      margin: 0;
+      padding: 10px;
+      color: #333;
+    }
+    h1 {
+      text-align: center;
+      font-size: 22px;
+      margin-bottom: 10px;
+    }
+    h2 {
+      font-size: 18px;
+      margin: 15px 0 5px;
+      color: #444;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 3px;
+    }
+    .section {
+      margin-bottom: 20px;
+    }
+    .headline {
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 10px;
+      padding: 10px;
+      background-color: #fff;
+      border-radius: 5px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .headline-button {
+      background-color: #0074D9;
+      border: none;
+      color: #fff;
+      padding: 8px 10px;
+      text-align: left;
+      font-size: 16px;
+      border-radius: 5px;
+      cursor: pointer;
+      width: 100%;
+      margin-bottom: 5px;
+    }
+    .headline-button:hover {
+      background-color: #005fa3;
+    }
+    .description {
+      font-size: 14px;
+      color: #555;
+      margin-bottom: 5px;
+    }
+    .read-more {
+      align-self: flex-end;
+      background-color: #28a745;
+      border: none;
+      color: #fff;
+      padding: 5px 8px;
+      font-size: 14px;
+      border-radius: 5px;
+      text-decoration: none;
+    }
+    .read-more:hover {
+      background-color: #218838;
+    }
+  </style>
+</head>
+<body>
+  <h1>Reuters Headlines</h1>
+  
+  <div class="section" id="technology-section">
+    <h2>Technology</h2>
+    <div id="tech-headlines">Loading headlines...</div>
+  </div>
+  
+  <div class="section" id="business-section">
+    <h2>Business</h2>
+    <div id="business-headlines">Loading headlines...</div>
+  </div>
+  
+  <div class="section" id="politics-section">
+    <h2>Politics</h2>
+    <div id="politics-headlines">Loading headlines...</div>
+  </div>
+  
+  <script>
+    // RSS feed URLs for Reuters headlines in specific categories via Google News
+    const feeds = {
+      technology: "https://news.google.com/rss/search?q=technology+site%3Areuters.com&hl=en-US&gl=US&ceid=US%3Aen",
+      business:   "https://news.google.com/rss/search?q=business+site%3Areuters.com&hl=en-US&gl=US&ceid=US%3Aen",
+      politics:   "https://news.google.com/rss/search?q=politics+site%3Areuters.com&hl=en-US&gl=US&ceid=US%3Aen"
+    };
+
+    // Helper function to determine a summary text if available
+    function getSummary(item) {
+      // Trim spaces and compare lowercase versions to check if they are different
+      const title = item.title ? item.title.trim().toLowerCase() : "";
+      const description = item.description ? item.description.trim() : "";
+      const content = item.content ? item.content.trim() : "";
+      
+      // Prefer 'content' if it is available and is not essentially the same as the title.
+      if (content && content.toLowerCase() !== title && content.length > title.length + 10) {
+        return content;
+      }
+      // Otherwise, if the description provides more info than the title, use that.
+      if (description && description.toLowerCase() !== title && description.length > title.length + 10) {
+        return description;
+      }
+      return ""; // Otherwise, return empty (no extra info)
+    }
+
+    // Function to fetch a feed and render up to maxItems headlines in the target container
+    function fetchAndRenderFeed(feedUrl, containerId, maxItems = 8) {
+      const encodedUrl = encodeURIComponent(feedUrl);
+      const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodedUrl}`;
+      
+      fetch(apiUrl)
+        .then(response => response.json())
+        .then(data => {
+          const container = document.getElementById(containerId);
+          container.innerHTML = ""; // Clear previous headlines
+          let count = 0;
+          data.items.forEach(item => {
+            if (count >= maxItems) return;
+            count++;
+
+            // Create container for each headline
+            const headlineDiv = document.createElement('div');
+            headlineDiv.className = "headline";
+            
+            // Create a button for the headline title
+            const headlineButton = document.createElement('button');
+            headlineButton.className = "headline-button";
+            headlineButton.textContent = item.title;
+            headlineButton.addEventListener('click', () => {
+              window.open(item.link, '_blank');
+            });
+            headlineDiv.appendChild(headlineButton);
+            
+            // Use the getSummary() function to decide if extra info is available
+            const summaryText = getSummary(item);
+            if (summaryText) {
+              const summary = document.createElement('div');
+              summary.className = "description";
+              // Optionally, you could truncate the summary here if it's too long.
+              summary.innerHTML = summaryText;
+              headlineDiv.appendChild(summary);
+            }
+            
+            // Create "Read More" link
+            const readMore = document.createElement('a');
+            readMore.className = "read-more";
+            readMore.href = item.link;
+            readMore.target = "_blank";
+            readMore.textContent = "Read More";
+            headlineDiv.appendChild(readMore);
+            
+            container.appendChild(headlineDiv);
+          });
+          if (count === 0) {
+            container.innerHTML = "No headlines available.";
+          }
+        })
+        .catch(error => {
+          console.error(`Error fetching headlines for ${containerId}:`, error);
+          document.getElementById(containerId).innerText = "Failed to load headlines.";
+        });
+    }
+    
+    // Function to fetch headlines for all categories
+    function fetchAllFeeds() {
+      fetchAndRenderFeed(feeds.technology, "tech-headlines");
+      fetchAndRenderFeed(feeds.business, "business-headlines");
+      fetchAndRenderFeed(feeds.politics, "politics-headlines");
+    }
+    
+    // Fetch headlines immediately on load, and refresh every minute (60000 ms)
+    fetchAllFeeds();
+    setInterval(fetchAllFeeds, 60000);
+  </script>
+</body>
+</html>
