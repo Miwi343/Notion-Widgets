@@ -7,38 +7,117 @@
   </head>
   <body>
     <!-- TradingView Widget BEGIN -->
-    <div class="tradingview-widget-container">
-      <div class="tradingview-widget-container__widget"></div>
-      <div class="tradingview-widget-copyright">
-        <a
-          href="https://www.tradingview.com/"
-          rel="noopener nofollow"
-          target="_blank"
-        >
-          <span class="blue-text">Track all markets on TradingView</span>
-        </a>
-      </div>
-      <script
-        type="text/javascript"
-        src="https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js"
-        async
-      >
-        {
-        "symbols": [
-            {"proName": "FOREXCOM:SPXUSD", "title": "S&P 500 Index"},
-            {"proName": "FOREXCOM:NSXUSD", "title": "US 100 Cash CFD"},
-            {"proName": "FX_IDC:EURUSD", "title": "EUR to USD"},
-            {"proName": "BITSTAMP:BTCUSD", "title": "Bitcoin"},
-            {"proName": "BITSTAMP:ETHUSD", "title": "Ethereum"}
-        ],
-        "showSymbolLogo": true,
-        "isTransparent": false,
-        "displayMode": "adaptive",
-        "colorTheme": "light",
-        "locale": "en"
-        }
-      </script>
-    </div>
-    <!-- TradingView Widget END -->
+<div class="tradingview-widget-container">
+    <div class="tradingview-widget-container__widget"></div>
+    <div class="tradingview-widget-copyright"><a href="https://www.tradingview.com/" rel="noopener nofollow" target="_blank"><span class="blue-text">Track all markets on TradingView</span></a></div>
+    <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js" async>
+    {
+    "symbols": [
+      {
+        "proName": "FOREXCOM:SPXUSD",
+        "title": "S&P 500 Index"
+      },
+      {
+        "proName": "FOREXCOM:NSXUSD",
+        "title": "US 100 Cash CFD"
+      },
+      {
+        "proName": "FX_IDC:EURUSD",
+        "title": "EUR to USD"
+      },
+      {
+        "proName": "BITSTAMP:BTCUSD",
+        "title": "Bitcoin"
+      },
+      {
+        "proName": "BITSTAMP:ETHUSD",
+        "title": "Ethereum"
+      },
+      {
+        "description": "Apple",
+        "proName": "NASDAQ:AAPL"
+      },
+      {
+        "description": "Tesla",
+        "proName": "NASDAQ:TSLA"
+      },
+      {
+        "description": "Nvidia",
+        "proName": "NASDAQ:NVDA"
+      },
+      {
+        "description": "Amazon",
+        "proName": "NASDAQ:AMZN"
+      },
+      {
+        "description": "Meta",
+        "proName": "NASDAQ:META"
+      },
+      {
+        "description": "Microsoft",
+        "proName": "NASDAQ:MSFT"
+      },
+      {
+        "description": "Google",
+        "proName": "NASDAQ:GOOGL"
+      },
+      {
+        "description": "Netflix",
+        "proName": "NASDAQ:NFLX"
+      },
+      {
+        "description": "Walmart",
+        "proName": "NYSE:WMT"
+      },
+      {
+        "description": "Nike",
+        "proName": "NYSE:NKE"
+      },
+      {
+        "description": "Nasdaq futures",
+        "proName": "CME_MINI:NQ1!"
+      },
+      {
+        "description": "S&P futures",
+        "proName": "CME_MINI:ES1!"
+      },
+      {
+        "description": "Oil futures",
+        "proName": "NYMEX:CL1!"
+      },
+      {
+        "description": "Interest Rate",
+        "proName": "ECONOMICS:USINTR"
+      },
+      {
+        "description": "US Tech Index",
+        "proName": "PEPPERSTONE:NAS100"
+      },
+      {
+        "description": "Dow Jones",
+        "proName": "BLACKBULL:US30"
+      },
+      {
+        "description": "Intel",
+        "proName": "NASDAQ:INTC"
+      },
+      {
+        "description": "Verizon",
+        "proName": "NYSE:VZ"
+      },
+      {
+        "description": "Spotify",
+        "proName": "NYSE:SPOT"
+      }
+    ],
+    "showSymbolLogo": true,
+    "isTransparent": false,
+    "displayMode": "adaptive",
+    "colorTheme": "dark",
+    "locale": "en"
+  }
+    </script>
+  </div>
+  <!-- TradingView Widget END -->
   </body>
 </html>
