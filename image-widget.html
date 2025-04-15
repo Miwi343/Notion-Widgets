@@ -5,70 +5,72 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Random Google Photo Widget</title>
   <style>
-    /* Make the widget take up the full viewport */
+    /* Full-page centered layout for the widget */
     html, body {
       margin: 0;
       padding: 0;
       height: 100%;
       width: 100%;
       background: #fff;
+      font-family: Arial, sans-serif;
       display: flex;
       flex-direction: column;
-      align-items: center;
       justify-content: center;
-      font-family: Arial, sans-serif;
+      align-items: center;
     }
     /* Style for the photo */
     #photo {
       max-width: 90%;
-      max-height: 90%;
+      max-height: 80%;
       display: none;
       box-shadow: 0 4px 8px rgba(0,0,0,0.2);
     }
-    /* Style for the sign-in button */
-    #login-button {
+    /* Style for buttons */
+    button {
       padding: 10px 20px;
       font-size: 16px;
       cursor: pointer;
-      margin-bottom: 20px;
-      display: none;
+      margin: 10px;
     }
   </style>
   <!-- Load the Google API client library -->
   <script src="https://apis.google.com/js/api.js"></script>
 </head>
 <body>
-  <!-- Sign In Button (shown if not authenticated) -->
-  <button id="login-button">Sign in with Google</button>
-  <!-- Image container for the random photo -->
+  <!-- Sign In Button: shown if not already authenticated -->
+  <button id="login-button" style="display:none;">Sign in with Google</button>
+  <!-- Random Photo Image -->
   <img id="photo" src="" alt="Random Photo">
+  <!-- Skip button to manually load the next photo -->
+  <button id="skip-button" style="display:none;">Skip Photo</button>
 
   <script>
-    // Replace the placeholder below with your actual Client ID from your OAuth credentials.
+    // Replace this with your actual OAuth Client ID from your Google Cloud Console.
     const CLIENT_ID = '181865499400-a3vmf7pdi4tdusm3go5k7f5ba4l1qfb5.apps.googleusercontent.com';
     // Discovery document for the Google Photos Library API.
     const DISCOVERY_DOC = 'https://photoslibrary.googleapis.com/$discovery/rest?version=v1';
-    // We only need read-only scope.
+    // Use read-only scope
     const SCOPES = 'https://www.googleapis.com/auth/photoslibrary.readonly';
 
     let tokenClient;      // Will hold the token client instance from GIS.
-    let gapiInited = false; // Flag to indicate if gapi is ready.
-    let gisInited = false;  // Flag to indicate if GIS is ready.
+    let gapiInited = false; // Flag indicating that gapi is ready.
+    let gisInited = false;  // Flag indicating that GIS is ready.
 
-    // Hide the sign-in button until both libraries are loaded.
+    // Initially hide both buttons.
     document.getElementById('login-button').style.display = 'none';
+    document.getElementById('skip-button').style.display = 'none';
 
-    // Called when the Google API client library is loaded.
+    // When gapi is loaded, initialize the client.
     function gapiLoaded() {
       gapi.load('client', initializeGapiClient);
     }
 
-    // Initialize the gapi client library with your API key (if needed) and the discovery doc.
+    // Initialize gapi client using discovery document.
     async function initializeGapiClient() {
       try {
-        // If you have a public API key (optional), you can add it here:
         await gapi.client.init({
-          // apiKey: 'YOUR_API_KEY_IF_AVAILABLE',
+          // Optionally, you can add an API key here if needed:
+          // apiKey: 'YOUR_API_KEY',
           discoveryDocs: [DISCOVERY_DOC],
         });
         gapiInited = true;
@@ -78,59 +80,66 @@
       }
     }
 
-    // Called when the Google Identity Services (GIS) library is loaded.
+    // When GIS is loaded, initialize the token client.
     function gisLoaded() {
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
-        callback: '' // Callback will be set in handleAuthClick.
+        // Callback will be defined later.
+        callback: '',
       });
       gisInited = true;
       maybeEnableButtons();
     }
 
-    // Enable the sign-in button once both libraries are ready.
+    // Enable sign-in button once both libraries have loaded.
     function maybeEnableButtons() {
       if (gapiInited && gisInited) {
-        document.getElementById('login-button').style.display = 'block';
+        // Try to silently request a token if available (may fail if not signed in yet)
+        tokenClient.requestAccessToken({prompt: 'none'});
+        // If there's no token, the sign-in button will appear.
+        if (!gapi.client.getToken()) {
+          document.getElementById('login-button').style.display = 'block';
+        }
       }
     }
 
-    // Handle the sign-in button click.
+    // Handle sign-in button click.
     function handleAuthClick() {
-      tokenClient.callback = async (resp) => {
-        if (resp.error) {
-          console.error('Error during authentication:', resp);
+      tokenClient.callback = async (response) => {
+        if (response.error) {
+          console.error('Error during authentication:', response);
           return;
         }
-        // Once signed in, hide the button and load a random photo.
+        // Token obtained—hide the sign-in button and show the photo and skip buttons.
         document.getElementById('login-button').style.display = 'none';
+        document.getElementById('skip-button').style.display = 'block';
         loadRandomPhoto();
       };
 
-      // If no token is present, prompt the user for consent; otherwise, refresh silently.
+      // If no token is present, prompt the user.
       if (gapi.client.getToken() === null) {
         tokenClient.requestAccessToken({prompt: 'consent'});
       } else {
+        // If token exists, request silently.
         tokenClient.requestAccessToken({prompt: ''});
       }
     }
 
-    // Fetch a list of photos from your Google Photos library and display a random one.
+    // Fetch a list of photos and display a random one.
     async function loadRandomPhoto() {
       try {
         let response = await gapi.client.photoslibrary.mediaItems.list({
-          pageSize: 100,  // You can adjust this number as needed.
+          pageSize: 100, // Adjust if needed.
         });
         const items = response.result.mediaItems;
         if (!items || items.length === 0) {
-          console.log("No photos found in your library.");
+          console.log("No photos found in your Google Photos library.");
           return;
         }
-        // Select a random photo.
         const randomIndex = Math.floor(Math.random() * items.length);
         const photoItem = items[randomIndex];
-        // Construct the image URL; you can append parameters to control size.
+        // Construct the photo URL and optionally append parameters for desired size.
         const photoUrl = photoItem.baseUrl + '=w800-h600';
         const imgElement = document.getElementById('photo');
         imgElement.src = photoUrl;
@@ -140,25 +149,28 @@
       }
     }
 
-    // Load gapi and initialize it.
+    // Set up the skip button to load the next random photo.
+    document.getElementById('skip-button').onclick = loadRandomPhoto;
+
+    // Load gapi and GIS libraries.
     gapi.load('client:auth2', gapiLoaded);
 
-    // Create and add the Google Identity Services script.
+    // Load the Google Identity Services library.
     const gisScript = document.createElement('script');
     gisScript.src = "https://accounts.google.com/gsi/client";
     gisScript.defer = true;
     gisScript.onload = gisLoaded;
     document.head.appendChild(gisScript);
 
-    // Set up the click handler for the login button.
+    // Set up the sign-in button click handler.
     document.getElementById('login-button').onclick = handleAuthClick;
 
-    // Auto-refresh the random photo every minute.
+    // Set auto-refresh for the photo every 30 minutes (30 * 60 * 1000 ms).
     setInterval(() => {
       if (gapi.client.getToken() !== null) {
         loadRandomPhoto();
       }
-    }, 60000);
+    }, 30 * 60 * 1000);
   </script>
 </body>
 </html>
