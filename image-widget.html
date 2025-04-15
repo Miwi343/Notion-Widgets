@@ -3,114 +3,159 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="script-src 'self' https://apis.google.com https://www.gstatic.com 'unsafe-inline' 'unsafe-eval' data: blob:;">
   <title>Random Google Photo Widget</title>
   <style>
-    /* Full-page centered layout for the widget */
+    /* Make the widget take up the full viewport */
     html, body {
       margin: 0;
       padding: 0;
       height: 100%;
       width: 100%;
       background: #fff;
-      font-family: Arial, sans-serif;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
+      font-family: Arial, sans-serif;
     }
+    /* Style for the photo */
     #photo {
       max-width: 90%;
       max-height: 90%;
+      display: none;
       box-shadow: 0 4px 8px rgba(0,0,0,0.2);
     }
+    /* Style for the sign-in button */
     #login-button {
-      font-family: Arial, sans-serif;
       padding: 10px 20px;
       font-size: 16px;
       cursor: pointer;
       margin-bottom: 20px;
+      display: none;
     }
   </style>
   <!-- Load the Google API client library -->
   <script src="https://apis.google.com/js/api.js"></script>
 </head>
 <body>
-  <!-- Sign In Button (visible only if not authenticated) -->
-  <button id="login-button" style="display:none;">Sign in with Google</button>
-  <!-- Container for the random photo -->
-  <img id="photo" src="" alt="Random Photo" style="display:none;">
-  
+  <!-- Sign In Button (shown if not authenticated) -->
+  <button id="login-button">Sign in with Google</button>
+  <!-- Image container for the random photo -->
+  <img id="photo" src="" alt="Random Photo">
+
   <script>
-    // Your Client ID from Google Cloud Console
-    const CLIENT_ID = '181865499400-j3pdfgplk3hph2knbgh227trngp92eac.apps.googleusercontent.com'; 
-    const DISCOVERY_DOCS = ["https://photoslibrary.googleapis.com/$discovery/rest?version=v1"];
+    // Replace the placeholder below with your actual Client ID from your OAuth credentials.
+    const CLIENT_ID = '181865499400-a3vmf7pdi4tdusm3go5k7f5ba4l1qfb5.apps.googleusercontent.com';
+    // Discovery document for the Google Photos Library API.
+    const DISCOVERY_DOC = 'https://photoslibrary.googleapis.com/$discovery/rest?version=v1';
+    // We only need read-only scope.
     const SCOPES = 'https://www.googleapis.com/auth/photoslibrary.readonly';
 
-    // Initialize the Google API client library
-    function initClient() {
-      gapi.client.init({
-        clientId: CLIENT_ID,
-        discoveryDocs: DISCOVERY_DOCS,
-        scope: SCOPES
-      }).then(() => {
-        // Listen for sign-in state changes.
-        gapi.auth2.getAuthInstance().isSignedIn.listen(updateSigninStatus);
-        // Handle the initial sign-in state.
-        updateSigninStatus(gapi.auth2.getAuthInstance().isSignedIn.get());
-        // Set sign in button click handler.
-        document.getElementById('login-button').onclick = handleAuthClick;
-      }, (error) => {
-        console.error('Error initializing gapi:', error);
-      });
+    let tokenClient;      // Will hold the token client instance from GIS.
+    let gapiInited = false; // Flag to indicate if gapi is ready.
+    let gisInited = false;  // Flag to indicate if GIS is ready.
+
+    // Hide the sign-in button until both libraries are loaded.
+    document.getElementById('login-button').style.display = 'none';
+
+    // Called when the Google API client library is loaded.
+    function gapiLoaded() {
+      gapi.load('client', initializeGapiClient);
     }
 
-    // Called when the signed in status changes.
-    function updateSigninStatus(isSignedIn) {
-      if (isSignedIn) {
-        document.getElementById('login-button').style.display = 'none';
-        loadRandomPhoto();
-      } else {
-        document.getElementById('login-button').style.display = 'block';
-        document.getElementById('photo').style.display = 'none';
+    // Initialize the gapi client library with your API key (if needed) and the discovery doc.
+    async function initializeGapiClient() {
+      try {
+        // If you have a public API key (optional), you can add it here:
+        await gapi.client.init({
+          // apiKey: 'YOUR_API_KEY_IF_AVAILABLE',
+          discoveryDocs: [DISCOVERY_DOC],
+        });
+        gapiInited = true;
+        maybeEnableButtons();
+      } catch (error) {
+        console.error('Error initializing gapi client:', error);
       }
     }
 
-    // Sign in the user when the button is clicked.
-    function handleAuthClick() {
-      gapi.auth2.getAuthInstance().signIn();
+    // Called when the Google Identity Services (GIS) library is loaded.
+    function gisLoaded() {
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        callback: '' // Callback will be set in handleAuthClick.
+      });
+      gisInited = true;
+      maybeEnableButtons();
     }
 
-    // Fetch a list of photos and display a randomly selected one.
-    function loadRandomPhoto() {
-      // Request up to 100 media items from the user's library.
-      gapi.client.photoslibrary.mediaItems.list({
-        pageSize: 100
-      }).then((response) => {
-        const items = response.result.mediaItems;
-        if (!items || items.length === 0) {
-          console.log('No photos found.');
+    // Enable the sign-in button once both libraries are ready.
+    function maybeEnableButtons() {
+      if (gapiInited && gisInited) {
+        document.getElementById('login-button').style.display = 'block';
+      }
+    }
+
+    // Handle the sign-in button click.
+    function handleAuthClick() {
+      tokenClient.callback = async (resp) => {
+        if (resp.error) {
+          console.error('Error during authentication:', resp);
           return;
         }
-        // Choose a random photo.
+        // Once signed in, hide the button and load a random photo.
+        document.getElementById('login-button').style.display = 'none';
+        loadRandomPhoto();
+      };
+
+      // If no token is present, prompt the user for consent; otherwise, refresh silently.
+      if (gapi.client.getToken() === null) {
+        tokenClient.requestAccessToken({prompt: 'consent'});
+      } else {
+        tokenClient.requestAccessToken({prompt: ''});
+      }
+    }
+
+    // Fetch a list of photos from your Google Photos library and display a random one.
+    async function loadRandomPhoto() {
+      try {
+        let response = await gapi.client.photoslibrary.mediaItems.list({
+          pageSize: 100,  // You can adjust this number as needed.
+        });
+        const items = response.result.mediaItems;
+        if (!items || items.length === 0) {
+          console.log("No photos found in your library.");
+          return;
+        }
+        // Select a random photo.
         const randomIndex = Math.floor(Math.random() * items.length);
         const photoItem = items[randomIndex];
-        // Construct the URL; append parameters for desired size (optional)
+        // Construct the image URL; you can append parameters to control size.
         const photoUrl = photoItem.baseUrl + '=w800-h600';
         const imgElement = document.getElementById('photo');
         imgElement.src = photoUrl;
         imgElement.style.display = 'block';
-      }, (error) => {
+      } catch (error) {
         console.error('Error fetching photos:', error);
-      });
+      }
     }
 
-    // Load the Google API client library and initialize it.
-    gapi.load('client:auth2', initClient);
+    // Load gapi and initialize it.
+    gapi.load('client:auth2', gapiLoaded);
 
-    // Auto-refresh every minute (60000 milliseconds)
+    // Create and add the Google Identity Services script.
+    const gisScript = document.createElement('script');
+    gisScript.src = "https://accounts.google.com/gsi/client";
+    gisScript.defer = true;
+    gisScript.onload = gisLoaded;
+    document.head.appendChild(gisScript);
+
+    // Set up the click handler for the login button.
+    document.getElementById('login-button').onclick = handleAuthClick;
+
+    // Auto-refresh the random photo every minute.
     setInterval(() => {
-      if (gapi.auth2.getAuthInstance().isSignedIn.get()) {
+      if (gapi.client.getToken() !== null) {
         loadRandomPhoto();
       }
     }, 60000);
