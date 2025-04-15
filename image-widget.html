@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Random Google Photo Widget</title>
   <style>
-    /* Full-page centered layout for the widget */
+    /* Full-page centered layout */
     html, body {
       margin: 0;
       padding: 0;
@@ -21,55 +21,71 @@
     /* Style for the photo */
     #photo {
       max-width: 90%;
-      max-height: 80%;
+      max-height: 70%;
       display: none;
       box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+      margin-bottom: 20px;
     }
-    /* Style for buttons */
+    /* Style for the control buttons */
     button {
       padding: 10px 20px;
       font-size: 16px;
       cursor: pointer;
-      margin: 10px;
+      margin: 5px;
+    }
+    /* Container for control buttons */
+    #controls {
+      display: flex;
+      justify-content: center;
     }
   </style>
   <!-- Load the Google API client library -->
   <script src="https://apis.google.com/js/api.js"></script>
 </head>
 <body>
-  <!-- Sign In Button: shown if not already authenticated -->
+  <!-- Sign In Button (shown if not authenticated) -->
   <button id="login-button" style="display:none;">Sign in with Google</button>
-  <!-- Random Photo Image -->
+  <!-- Image container -->
   <img id="photo" src="" alt="Random Photo">
-  <!-- Skip button to manually load the next photo -->
-  <button id="skip-button" style="display:none;">Skip Photo</button>
+  <!-- Control buttons container -->
+  <div id="controls" style="display:none;">
+    <button id="pause-resume-button">Pause</button>
+    <button id="skip-button">Skip Photo</button>
+  </div>
 
   <script>
-    // Replace this with your actual OAuth Client ID from your Google Cloud Console.
+    // Replace with your actual OAuth Client ID from your Google Cloud Console.
     const CLIENT_ID = '181865499400-a3vmf7pdi4tdusm3go5k7f5ba4l1qfb5.apps.googleusercontent.com';
     // Discovery document for the Google Photos Library API.
     const DISCOVERY_DOC = 'https://photoslibrary.googleapis.com/$discovery/rest?version=v1';
-    // Use read-only scope
+    // Request read-only scope.
     const SCOPES = 'https://www.googleapis.com/auth/photoslibrary.readonly';
 
-    let tokenClient;      // Will hold the token client instance from GIS.
-    let gapiInited = false; // Flag indicating that gapi is ready.
-    let gisInited = false;  // Flag indicating that GIS is ready.
+    let tokenClient;      
+    let gapiInited = false; 
+    let gisInited = false;  
+    let autoRefreshInterval = null; // Will store the setInterval ID
+    let isPaused = false;           // Track whether auto-refresh is paused
 
-    // Initially hide both buttons.
-    document.getElementById('login-button').style.display = 'none';
-    document.getElementById('skip-button').style.display = 'none';
+    const loginButton = document.getElementById('login-button');
+    const skipButton = document.getElementById('skip-button');
+    const pauseResumeButton = document.getElementById('pause-resume-button');
+    const photoElement = document.getElementById('photo');
+    const controlsDiv = document.getElementById('controls');
 
-    // When gapi is loaded, initialize the client.
+    // Hide buttons until libraries are loaded.
+    loginButton.style.display = 'none';
+    controlsDiv.style.display = 'none';
+
+    // Load the gapi client and initialize it.
     function gapiLoaded() {
       gapi.load('client', initializeGapiClient);
     }
 
-    // Initialize gapi client using discovery document.
     async function initializeGapiClient() {
       try {
         await gapi.client.init({
-          // Optionally, you can add an API key here if needed:
+          // Optionally include an API key if you have one.
           // apiKey: 'YOUR_API_KEY',
           discoveryDocs: [DISCOVERY_DOC],
         });
@@ -80,48 +96,53 @@
       }
     }
 
-    // When GIS is loaded, initialize the token client.
+    // Load the Google Identity Services (GIS) library.
     function gisLoaded() {
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
-        // Callback will be defined later.
-        callback: '',
+        callback: '', // Callback will be set in handleAuthClick.
       });
       gisInited = true;
       maybeEnableButtons();
     }
 
-    // Enable sign-in button once both libraries have loaded.
+    // Enable the sign-in button once both libraries have loaded.
     function maybeEnableButtons() {
       if (gapiInited && gisInited) {
-        // Try to silently request a token if available (may fail if not signed in yet)
+        // Attempt silent token request.
         tokenClient.requestAccessToken({prompt: 'none'});
-        // If there's no token, the sign-in button will appear.
+        // If no token is yet available, show the sign-in button.
         if (!gapi.client.getToken()) {
-          document.getElementById('login-button').style.display = 'block';
+          loginButton.style.display = 'block';
+        } else {
+          // Already signed in – hide login and show photo + controls.
+          loginButton.style.display = 'none';
+          photoElement.style.display = 'block';
+          controlsDiv.style.display = 'flex';
+          startAutoRefresh();
+          loadRandomPhoto();
         }
       }
     }
 
-    // Handle sign-in button click.
+    // Handle sign-in on click.
     function handleAuthClick() {
-      tokenClient.callback = async (response) => {
-        if (response.error) {
-          console.error('Error during authentication:', response);
+      tokenClient.callback = async (resp) => {
+        if (resp.error) {
+          console.error('Error during authentication:', resp);
           return;
         }
-        // Token obtained—hide the sign-in button and show the photo and skip buttons.
-        document.getElementById('login-button').style.display = 'none';
-        document.getElementById('skip-button').style.display = 'block';
+        loginButton.style.display = 'none';
+        photoElement.style.display = 'block';
+        controlsDiv.style.display = 'flex';
+        startAutoRefresh();
         loadRandomPhoto();
       };
 
-      // If no token is present, prompt the user.
       if (gapi.client.getToken() === null) {
         tokenClient.requestAccessToken({prompt: 'consent'});
       } else {
-        // If token exists, request silently.
         tokenClient.requestAccessToken({prompt: ''});
       }
     }
@@ -129,8 +150,8 @@
     // Fetch a list of photos and display a random one.
     async function loadRandomPhoto() {
       try {
-        let response = await gapi.client.photoslibrary.mediaItems.list({
-          pageSize: 100, // Adjust if needed.
+        const response = await gapi.client.photoslibrary.mediaItems.list({
+          pageSize: 100,
         });
         const items = response.result.mediaItems;
         if (!items || items.length === 0) {
@@ -139,38 +160,50 @@
         }
         const randomIndex = Math.floor(Math.random() * items.length);
         const photoItem = items[randomIndex];
-        // Construct the photo URL and optionally append parameters for desired size.
+        // Build the photo URL; adjust parameters as needed.
         const photoUrl = photoItem.baseUrl + '=w800-h600';
-        const imgElement = document.getElementById('photo');
-        imgElement.src = photoUrl;
-        imgElement.style.display = 'block';
+        photoElement.src = photoUrl;
+        photoElement.style.display = 'block';
       } catch (error) {
         console.error('Error fetching photos:', error);
       }
     }
 
-    // Set up the skip button to load the next random photo.
-    document.getElementById('skip-button').onclick = loadRandomPhoto;
+    // Start the auto-refresh interval (every 30 minutes).
+    function startAutoRefresh() {
+      // Clear any existing interval.
+      if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+      autoRefreshInterval = setInterval(() => {
+        if (!isPaused) {
+          loadRandomPhoto();
+        }
+      }, 30 * 60 * 1000); // 30 minutes
+    }
 
-    // Load gapi and GIS libraries.
+    // Toggle pause/resume for the auto-refresh.
+    function togglePauseResume() {
+      isPaused = !isPaused;
+      pauseResumeButton.textContent = isPaused ? 'Resume' : 'Pause';
+      if (!isPaused) {
+        // Immediately load a new photo upon resuming.
+        loadRandomPhoto();
+      }
+    }
+
+    // Set up button event handlers.
+    loginButton.onclick = handleAuthClick;
+    skipButton.onclick = loadRandomPhoto;
+    pauseResumeButton.onclick = togglePauseResume;
+
+    // Load the gapi and GIS libraries.
     gapi.load('client:auth2', gapiLoaded);
-
-    // Load the Google Identity Services library.
     const gisScript = document.createElement('script');
     gisScript.src = "https://accounts.google.com/gsi/client";
     gisScript.defer = true;
     gisScript.onload = gisLoaded;
     document.head.appendChild(gisScript);
 
-    // Set up the sign-in button click handler.
-    document.getElementById('login-button').onclick = handleAuthClick;
-
-    // Set auto-refresh for the photo every 30 minutes (30 * 60 * 1000 ms).
-    setInterval(() => {
-      if (gapi.client.getToken() !== null) {
-        loadRandomPhoto();
-      }
-    }, 30 * 60 * 1000);
+    // Auto-refresh is already handled in startAutoRefresh.
   </script>
 </body>
 </html>
